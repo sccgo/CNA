@@ -22,12 +22,16 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // لاحقًا لو فعلت HTTPS تخليها true
+    secure: false,
     maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
 
+// 🔥 static files (مهم للنشر)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// (اختياري لكن مفيد)
+app.disable('x-powered-by');
 
 const page = (f) => (req, res) =>
   res.sendFile(path.join(__dirname, 'public', f));
@@ -35,13 +39,11 @@ const page = (f) => (req, res) =>
 // تشغيل قاعدة البيانات ثم السيرفر
 initDb()
   .then((db) => {
-    // ربط قاعدة البيانات بكل الطلبات
     app.use((req, res, next) => {
       req.db = db;
       next();
     });
 
-    // Routes
     app.use('/', require('./routes/auth')(db));
     app.use('/', require('./routes/news')(db));
 
@@ -63,14 +65,11 @@ initDb()
     app.get('/admin/users', page('admin/users.html'));
     app.get('/admin/departments', page('admin/departments.html'));
 
-    // تشغيل السيرفر (مهم جدًا 0.0.0.0 للنشر)
+    // تشغيل السيرفر (مهم جدًا للنشر)
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n╔══════════════════════════════════════╗`);
-      console.log(`║   CNA - News System Running         ║`);
-      console.log(`╠══════════════════════════════════════╣`);
-      console.log(`║  PORT: ${PORT}                        ║`);
-      console.log(`╚══════════════════════════════════════╝\n`);
+      console.log(`Server running on port ${PORT}`);
     });
+
   })
   .catch((err) => {
     console.error('DB init failed:', err);
