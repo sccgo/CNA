@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - الأرشيف</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-top">
+    <a href="/" class="site-logo">
+      <span class="logo-en">CNA</span>
+      <span class="logo-ar">وكالة الأنباء التنسيقية</span>
+      <div class="logo-line"></div>
+    </a>
+    <form class="search-form" onsubmit="handleSearch(event)">
+      <input type="text" id="search-input" placeholder="ابحث في الأخبار..." autocomplete="off">
+      <button type="submit">بحث</button>
+    </form>
+    <div class="header-actions" id="header-actions">
+      <a href="/login" class="btn btn-sm btn-primary">دخول</a>
+    </div>
+  </div>
+  <nav class="nav-bar">
+    <div class="nav-inner">
+      <a href="/" class="nav-link">الرئيسية</a>
+      <a href="/archive" class="nav-link active">الأرشيف</a>
+    </div>
+  </nav>
+</header>
+
+<main class="main-content">
+  <div class="container">
+    <div class="content-with-sidebar">
+      <div>
+        <div class="news-section-header">
+          <h2 class="section-title" id="archive-title">الأرشيف</h2>
+        </div>
+
+        <!-- Year/Month selector -->
+        <div id="year-tabs" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.5rem"></div>
+
+        <div id="news-grid" class="news-grid"><div class="loading"></div></div>
+        <div id="pagination"></div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="sidebar-widget">
+          <h3 class="sidebar-widget-title">الأرشيف الكامل</h3>
+          <div id="archive-tree"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-bottom">
+      <span id="footer-year"></span>
+      <span>وكالة الأنباء التنسيقية - جميع الحقوق محفوظة</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/utils.js"></script>
+<script>
+  document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+  const monthNames = ['','يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+  const urlParams = new URLSearchParams(window.location.search);
+  let selectedYear = urlParams.get('year') || '';
+  let selectedMonth = urlParams.get('month') || '';
+  let currentPage = 1;
+
+  async function init() {
+    await initHeader();
+    loadArchive();
+    if (selectedYear) loadNews(1);
+  }
+
+  async function loadArchive() {
+    const archive = await api('/api/archive');
+    
+    // Group by year
+    const years = {};
+    archive.forEach(a => {
+      if (!years[a.year]) years[a.year] = [];
+      years[a.year].push(a);
+    });
+
+    // Year tabs
+    const yearTabs = document.getElementById('year-tabs');
+    Object.keys(years).sort((a,b) => b-a).forEach(y => {
+      const btn = document.createElement('button');
+      btn.className = 'filter-chip' + (y === selectedYear ? ' active' : '');
+      btn.textContent = y;
+      btn.onclick = () => {
+        selectedYear = y;
+        selectedMonth = '';
+        document.querySelectorAll('#year-tabs .filter-chip').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadNews(1);
+        renderMonthTabs(years[y]);
+      };
+      yearTabs.appendChild(btn);
+    });
+
+    // Archive tree in sidebar
+    const tree = document.getElementById('archive-tree');
+    tree.innerHTML = Object.keys(years).sort((a,b) => b-a).map(y => `
+      <div style="margin-bottom:1rem">
+        <div style="font-weight:700; font-size:0.9rem; margin-bottom:0.4rem; cursor:pointer" onclick="selectYear('${y}')">${y}</div>
+        ${years[y].map(m => `
+          <div class="sidebar-news-item" style="border:none; padding:0.3rem 0 0.3rem 1rem; cursor:pointer" onclick="selectYearMonth('${m.year}','${m.month}')">
+            <div style="flex:1">
+              <div class="sidebar-news-title" style="font-size:0.85rem">${monthNames[parseInt(m.month)]} ${m.year}</div>
+              <div class="sidebar-news-date">${m.count} خبر</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+
+    if (selectedYear && years[selectedYear]) {
+      renderMonthTabs(years[selectedYear]);
+    }
+  }
+
+  function renderMonthTabs(months) {
+    // Could add month sub-tabs if needed
+  }
+
+  function selectYear(y) {
+    selectedYear = y;
+    selectedMonth = '';
+    document.querySelectorAll('#year-tabs .filter-chip').forEach(b => {
+      b.classList.toggle('active', b.textContent === y);
+    });
+    loadNews(1);
+  }
+
+  function selectYearMonth(y, m) {
+    selectedYear = y;
+    selectedMonth = m;
+    document.querySelectorAll('#year-tabs .filter-chip').forEach(b => {
+      b.classList.toggle('active', b.textContent === y);
+    });
+    loadNews(1);
+  }
+
+  async function loadNews(page = 1) {
+    currentPage = page;
+    const grid = document.getElementById('news-grid');
+    grid.innerHTML = '<div class="loading"></div>';
+    
+    if (!selectedYear) {
+      grid.innerHTML = '<div class="empty-state"><p>اختر سنة من القائمة لعرض الأخبار</p></div>';
+      return;
+    }
+
+    const title = selectedMonth
+      ? `أخبار ${monthNames[parseInt(selectedMonth)]} ${selectedYear}`
+      : `أخبار سنة ${selectedYear}`;
+    document.getElementById('archive-title').textContent = title;
+
+    const params = new URLSearchParams({
+      page, limit: 12,
+      archive_year: selectedYear,
+      ...(selectedMonth ? { archive_month: selectedMonth } : {})
+    });
+
+    try {
+      const data = await api('/api/news?' + params);
+      if (!data.news.length) {
+        grid.innerHTML = '<div class="empty-state"><div class="empty-state-title">لا توجد أخبار</div><p>لم يتم العثور على أخبار في هذه الفترة</p></div>';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+      grid.innerHTML = data.news.map(renderNewsCard).join('');
+      document.getElementById('pagination').innerHTML = renderPagination(page, data.pages, 'loadNews');
+    } catch (e) {
+      grid.innerHTML = `<div class="empty-state"><p>حدث خطأ</p></div>`;
+    }
+  }
+
+  function handleSearch(e) {
+    e.preventDefault();
+    const q = document.getElementById('search-input').value.trim();
+    if (q) window.location.href = '/?q=' + encodeURIComponent(q);
+  }
+
+  init();
+</script>
+</body>
+</html>

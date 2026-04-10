@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - تفاصيل الخبر</title>
+<link rel="shortcut icon" href="/img/cna.png" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+/* LIVE badge */
+.live-badge {
+  display:inline-flex; align-items:center; gap:0.4rem;
+  background:#0a0a0a; color:#fff;
+  padding:0.3rem 0.9rem; font-size:0.75rem; font-weight:700; letter-spacing:0.1em;
+}
+.live-dot {
+  width:8px; height:8px; border-radius:50%; background:#fff;
+  animation: blink 1s step-start infinite;
+}
+@keyframes blink { 50%{opacity:0} }
+.live-player-wrap {
+  position:relative; width:100%; padding-top:56.25%;
+  background:#0a0a0a; margin:1.5rem 0; border:2px solid #0a0a0a;
+}
+.live-player-wrap iframe {
+  position:absolute; top:0; left:0; width:100%; height:100%; border:none;
+}
+.live-label-bar {
+  background:#0a0a0a; color:#fff; padding:0.6rem 1rem;
+  display:flex; align-items:center; gap:0.6rem;
+  font-size:0.85rem; font-weight:600; letter-spacing:0.05em;
+}
+
+/* Poll locked state */
+.poll-locked {
+  padding:1rem; background:#f5f5f5; border:1px solid #e5e5e5;
+  text-align:center; font-size:0.9rem; color:#737373;
+}
+.poll-locked a { color:#0a0a0a; font-weight:700; text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-top">
+    <a href="/" class="site-logo">
+      <img src="/img/cna.png" alt="CNA" style="height:48px" onerror="this.style.display='none'; document.getElementById('logo-text').style.display='flex'">
+      <div id="logo-text" style="display:none; flex-direction:column; gap:2px">
+        <span class="logo-en">CNA</span>
+        <span class="logo-ar">وكالة الأنباء التنسيقية</span>
+        <div class="logo-line"></div>
+      </div>
+    </a>
+    <form class="search-form" onsubmit="handleSearch(event)">
+      <input type="text" id="search-input" placeholder="ابحث في الأخبار..." autocomplete="off">
+      <button type="submit">بحث</button>
+    </form>
+    <div class="header-actions" id="header-actions">
+      <a href="/login" class="btn btn-sm btn-primary">دخول</a>
+    </div>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="container">
+    <div id="page-content"><div class="loading"></div></div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-bottom">
+      <span id="footer-year"></span>
+      <span>وكالة الأنباء التنسيقية - جميع الحقوق محفوظة</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/utils.js"></script>
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+const newsId = window.location.pathname.split('/').pop();
+let currentUser = null;
+
+async function init() {
+  const me = await api('/api/me').catch(()=>({user:null}));
+  currentUser = me.user;
+  renderHeaderActions(currentUser);
+  loadNews();
+}
+
+function renderHeaderActions(user) {
+  const el = document.getElementById('header-actions');
+  if (!el) return;
+  if (user) {
+    const isStaff = user.role==='admin'||user.role==='editor';
+    el.innerHTML = `
+      <span style="font-size:0.8rem; color:#737373; display:none" class="md-show">مرحباً، ${user.full_name||user.username}</span>
+      ${isStaff ? '<a href="/admin" class="btn btn-sm">الإدارة</a>' : ''}
+      <a href="/profile" class="btn btn-sm btn-ghost">حسابي</a>
+      <button onclick="logout()" class="btn btn-sm btn-ghost">خروج</button>
+    `;
+  } else {
+    el.innerHTML = `
+      <a href="/register" class="btn btn-sm">حساب جديد</a>
+      <a href="/login" class="btn btn-sm btn-primary">دخول</a>
+    `;
+  }
+}
+
+async function loadNews() {
+  try {
+    const news = await api('/api/news/'+newsId);
+    document.title = 'CNA - ' + news.title;
+    const content = document.getElementById('page-content');
+    content.innerHTML = `
+      <div style="margin-bottom:1rem; font-size:0.85rem; color:#737373">
+        <a href="/" style="color:#737373">الرئيسية</a>
+        <span style="margin:0 0.5rem; color:#d4d4d4">/</span>
+        <span>${news.department_name||'عام'}</span>
+      </div>
+      <div class="content-with-sidebar">
+        <article class="news-detail-wrap" id="news-article"></article>
+        <aside class="sidebar" id="news-sidebar"></aside>
+      </div>
+    `;
+    renderArticle(news);
+    renderSidebar(news);
+    if (news.counter && news.is_featured) startCounter(news.counter);
+    document.querySelectorAll('.detail-images-grid img').forEach(img => img.onclick = ()=>openLightbox(img.src));
+  } catch(e) {
+    document.getElementById('page-content').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-title">الخبر غير موجود</div>
+        <a href="/" class="btn">العودة للرئيسية</a>
+      </div>`;
+  }
+}
+
+function renderArticle(n) {
+  const images = Array.isArray(n.images) ? n.images : [];
+  const isStaff = currentUser && (currentUser.role==='admin'||currentUser.role==='editor');
+
+  document.getElementById('news-article').innerHTML = `
+    <div class="news-detail-header">
+      <div class="detail-badges">
+        ${n.is_live ? `<span class="live-badge"><span class="live-dot"></span>بث مباشر</span>` : ''}
+        ${n.is_breaking ? '<span class="detail-badge breaking">عاجل</span>' : ''}
+        ${n.is_featured ? '<span class="detail-badge">مميز</span>' : ''}
+        <span class="detail-badge">${n.department_name||'عام'}</span>
+      </div>
+      <h1 class="detail-title">${n.title}</h1>
+      ${n.short_description ? `<p class="detail-desc">${n.short_description}</p>` : ''}
+      <div class="detail-meta">
+        <span>${formatDateTime(n.created_at)}</span>
+        <span>${n.views||0} مشاهدة</span>
+        <span>${n.department_name||''}</span>
+      </div>
+      ${isStaff ? `<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+        <a href="/admin/edit/${n.id}" class="btn btn-sm">تعديل</a>
+        <button onclick="deleteNews(${n.id})" class="btn btn-sm btn-danger">حذف</button>
+      </div>` : ''}
+    </div>
+
+    ${n.is_live && n.live_url ? renderLivePlayer(n.live_url) : ''}
+    ${!n.is_live && n.main_image ? `<img src="${n.main_image}" alt="${n.title}" class="detail-main-image">` : ''}
+
+    <div class="detail-content">${n.content||''}</div>
+
+    ${images.length ? `
+      <div class="detail-images">
+        <div class="news-section-header"><h3 class="section-title">الصور</h3></div>
+        <div class="detail-images-grid">${images.map(img=>`<img src="${img}" loading="lazy">`).join('')}</div>
+      </div>` : ''}
+
+    ${n.poll ? renderPoll(n.poll) : ''}
+
+    ${n.related?.length ? `
+      <div style="margin-top:2.5rem">
+        <div class="news-section-header"><h3 class="section-title">أخبار ذات صلة</h3></div>
+        <div class="news-grid">${n.related.map(renderNewsCard).join('')}</div>
+      </div>` : ''}
+  `;
+}
+
+function renderLivePlayer(url) {
+  // Convert YouTube/standard URLs to embeddable
+  let embedUrl = url;
+  // YouTube watch URL
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  if (ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0`;
+  // YouTube live channel
+  const ytLive = url.match(/youtube\.com\/live\/([^?&\s]+)/);
+  if (ytLive) embedUrl = `https://www.youtube.com/embed/${ytLive[1]}?autoplay=1`;
+
+  return `
+    <div style="margin-bottom:1.5rem">
+      <div class="live-label-bar">
+        <span class="live-dot"></span>
+        البث المباشر
+      </div>
+      <div class="live-player-wrap">
+        <iframe src="${embedUrl}" allowfullscreen allow="autoplay; encrypted-media" loading="lazy"></iframe>
+      </div>
+    </div>
+  `;
+}
+
+function renderPoll(poll) {
+  const isExpired = poll.expires_at && new Date(poll.expires_at) < new Date();
+
+  // Not logged in → show locked message
+  if (!currentUser) {
+    return `
+      <div class="poll-widget">
+        <div class="poll-title">استطلاع الرأي</div>
+        <div class="poll-question">${poll.question}</div>
+        <div class="poll-locked">
+          يجب <a href="/login?redirect=/news/${newsId}">تسجيل الدخول</a>
+          أو <a href="/register">إنشاء حساب</a> للمشاركة في التصويت
+        </div>
+      </div>`;
+  }
+
+  // Already voted or expired → show results
+  if (poll.user_voted !== null || poll.user_voted !== undefined && poll.user_voted >= 0 || isExpired) {
+    if (isExpired || typeof poll.user_voted === 'number') {
+      return renderPollResults(poll, isExpired);
+    }
+  }
+
+  return `
+    <div class="poll-widget" id="poll-widget">
+      <div class="poll-title">استطلاع الرأي</div>
+      <div class="poll-question">${poll.question}</div>
+      ${isExpired ? '<p style="font-size:.85rem;color:#737373;margin-bottom:1rem">انتهت مدة التصويت</p>' : ''}
+      <div class="poll-options" id="poll-options">
+        ${poll.options.map((opt,i) => `
+          <button class="poll-option-btn" onclick="vote(${poll.id},${i})">${opt}</button>
+        `).join('')}
+      </div>
+      ${poll.expires_at && !isExpired ? `<div class="poll-total">ينتهي: ${formatDateTime(poll.expires_at)}</div>` : ''}
+    </div>`;
+}
+
+function renderPollResults(poll, expired) {
+  const total = poll.total_votes || 0;
+  const votesMap = {};
+  (poll.votes||[]).forEach(v => votesMap[v.option_index]=v.count);
+  return `
+    <div class="poll-widget">
+      <div class="poll-title">نتائج الاستطلاع${expired?' (منتهي)':''}</div>
+      <div class="poll-question">${poll.question}</div>
+      ${poll.options.map((opt,i) => {
+        const v = votesMap[i]||0;
+        const pct = total>0 ? Math.round(v/total*100) : 0;
+        const isMyVote = poll.user_voted===i;
+        return `
+          <div class="poll-result-bar">
+            <div class="poll-result-label">
+              <span>${opt}${isMyVote?' ✓':''}</span>
+              <span>${pct}% (${v})</span>
+            </div>
+            <div class="poll-bar-track">
+              <div class="poll-bar-fill" style="width:${pct}%; ${isMyVote?'background:#0a0a0a':''}"></div>
+            </div>
+          </div>`;
+      }).join('')}
+      <div class="poll-total">مجموع الأصوات: ${total}</div>
+    </div>`;
+}
+
+async function vote(pollId, optionIndex) {
+  if (!currentUser) { window.location.href='/login?redirect=/news/'+newsId; return; }
+  try {
+    const res = await api(`/api/polls/${pollId}/vote`, { method:'POST', body: JSON.stringify({ option_index: optionIndex }) });
+    // Re-fetch and re-render poll
+    const news = await api('/api/news/'+newsId);
+    if (news.poll) {
+      const pw = document.getElementById('poll-widget');
+      if (pw) pw.outerHTML = renderPollResults(news.poll, false);
+    }
+    showToast('تم تسجيل صوتك بنجاح');
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function renderSidebar(n) {
+  const sidebar = document.getElementById('news-sidebar');
+  sidebar.innerHTML = `
+    ${n.counter && n.is_featured ? `
+      <div class="sidebar-widget">
+        <h3 class="sidebar-widget-title">العداد</h3>
+        ${renderCounterWidget(n.counter)}
+      </div>` : ''}
+    <div class="sidebar-widget">
+      <h3 class="sidebar-widget-title">معلومات الخبر</h3>
+      <div style="font-size:.875rem;display:flex;flex-direction:column;gap:.6rem;color:#737373">
+        <div><strong style="color:#0a0a0a">الشعبة:</strong> ${n.department_name||'غير محدد'}</div>
+        <div><strong style="color:#0a0a0a">تاريخ النشر:</strong> ${formatDate(n.created_at)}</div>
+        <div><strong style="color:#0a0a0a">المشاهدات:</strong> ${n.views||0}</div>
+        ${n.is_breaking ? '<div style="font-weight:700;color:#0a0a0a">خبر عاجل</div>' : ''}
+        ${n.is_live ? '<div style="font-weight:700;color:#0a0a0a">بث مباشر نشط</div>' : ''}
+      </div>
+    </div>
+    ${!currentUser ? `
+      <div class="sidebar-widget">
+        <h3 class="sidebar-widget-title">المشاركة</h3>
+        <p style="font-size:.85rem;color:#737373;margin-bottom:.75rem">سجّل دخولك للمشاركة في التصويت ومتابعة الأخبار</p>
+        <div style="display:flex;flex-direction:column;gap:.5rem">
+          <a href="/login?redirect=/news/${n.id}" class="btn btn-primary btn-sm" style="text-align:center">تسجيل الدخول</a>
+          <a href="/register" class="btn btn-sm" style="text-align:center">إنشاء حساب جديد</a>
+        </div>
+      </div>` : ''}
+  `;
+}
+
+function renderCounterWidget(c) {
+  const bgStyle = c.bg_gradient ? `background:${c.bg_gradient}` : c.bg_image ? `background-image:url('${c.bg_image}');background-size:cover` : `background:${c.bg_color||'#000'}`;
+  const font = c.font_style==='serif' ? 'Amiri,serif' : 'Cairo,sans-serif';
+  return `<div class="counter-widget" id="counter-widget">
+    <div class="counter-bg" style="${bgStyle}"></div>
+    <div class="counter-inner" style="color:${c.text_color||'#fff'};font-family:${font}">
+      <div class="counter-label">${c.label||'منذ'}</div>
+      <div class="counter-display" id="counter-display"></div>
+    </div>
+  </div>`;
+}
+
+function startCounter(c) {
+  function update() {
+    const el = document.getElementById('counter-display');
+    if (!el) return;
+    const start = new Date(c.start_date), now = new Date();
+    let diff = c.direction==='down' ? (start-now) : (now-start);
+    if (diff<0) diff=0;
+    const s=Math.floor(diff/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), sec=s%60;
+    el.innerHTML=[{n:d,l:'يوم'},{n:h,l:'ساعة'},{n:m,l:'دقيقة'},{n:sec,l:'ثانية'}]
+      .map(u=>`<div class="counter-unit"><span class="counter-number">${String(u.n).padStart(2,'0')}</span><span class="counter-name">${u.l}</span></div>`).join('');
+  }
+  update(); setInterval(update,1000);
+}
+
+async function deleteNews(id) {
+  if (!confirm('هل أنت متأكد من حذف هذا الخبر؟')) return;
+  try {
+    await api('/api/news/'+id, { method:'DELETE' });
+    showToast('تم الحذف');
+    setTimeout(()=>location.href='/',1000);
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+function handleSearch(e) {
+  e.preventDefault();
+  const q = document.getElementById('search-input').value.trim();
+  if (q) window.location.href='/?q='+encodeURIComponent(q);
+}
+
+init();
+</script>
+</body>
+</html>

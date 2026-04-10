@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - تعديل الخبر</title>
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/vendor/quill.snow.css">
+</head>
+<body>
+<div class="admin-wrap">
+  <div class="admin-sidebar">
+    <div class="admin-sidebar-logo">
+      <div class="admin-logo-en">CNA</div>
+      <div class="admin-logo-ar">وكالة الأنباء التنسيقية</div>
+    </div>
+    <div class="admin-user-info">
+      <div class="admin-user-name" id="admin-user-name">...</div>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">الرئيسية</div>
+      <a href="/admin" class="admin-nav-link"><span class="admin-nav-icon">&#9632;</span> لوحة التحكم</a>
+      <a href="/" class="admin-nav-link" target="_blank"><span class="admin-nav-icon">&#9633;</span> عرض الموقع</a>
+      <div class="admin-nav-section">الأخبار</div>
+      <a href="/admin/create" class="admin-nav-link"><span class="admin-nav-icon">+</span> إنشاء خبر جديد</a>
+      <div class="admin-nav-section">الإعدادات</div>
+      <a href="/admin/departments" class="admin-nav-link"><span class="admin-nav-icon">&#9650;</span> الشعب</a>
+      <a href="/admin/settings" class="admin-nav-link"><span class="admin-nav-icon">&#9881;</span> الإعدادات</a>
+      <a href="/admin/users" class="admin-nav-link"><span class="admin-nav-icon">&#9786;</span> المستخدمين</a>
+    </nav>
+    <div style="padding:1.5rem; border-top:1px solid rgba(255,255,255,0.1)">
+      <button onclick="logout()" class="btn" style="width:100%; border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.5); font-size:0.8rem">تسجيل الخروج</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title" id="page-title">تعديل الخبر</h1>
+      <div style="display:flex; gap:0.5rem">
+        <button onclick="submitNews()" class="btn btn-primary">حفظ التغييرات</button>
+        <a href="/admin" class="btn btn-ghost">إلغاء</a>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div id="loading-state"><div class="loading"></div></div>
+      <div id="form-wrap" style="display:none">
+        <div id="form-error" class="alert alert-error" style="display:none"></div>
+        <div id="form-success" class="alert alert-success" style="display:none"></div>
+
+        <div class="admin-form-card">
+          <div class="admin-form-card-title">معلومات الخبر الأساسية</div>
+          <div class="form-group">
+            <label class="form-label">عنوان الخبر *</label>
+            <input type="text" class="form-control" id="title">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الوصف المختصر</label>
+            <textarea class="form-control" id="short_description" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">المحتوى الكامل</label>
+            <div id="quill-editor"></div>
+          </div>
+        </div>
+
+        <div class="admin-form-card">
+          <div class="admin-form-card-title">التصنيف والحالة</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">الشعبة</label>
+              <select class="form-control" id="department_id">
+                <option value="">-- اختر الشعبة --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">التصنيف</label>
+              <select class="form-control" id="category">
+                <option value="general">عام</option>
+                <option value="politics">سياسة</option>
+                <option value="economy">اقتصاد</option>
+                <option value="security">أمن</option>
+                <option value="culture">ثقافة</option>
+                <option value="international">دولي</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex; gap:2rem; flex-wrap:wrap">
+            <label class="form-check">
+              <input type="checkbox" id="is_breaking">
+              <span>خبر عاجل</span>
+            </label>
+            <label class="form-check">
+              <input type="checkbox" id="is_featured">
+              <span>خبر مميز</span>
+            </label>
+            <label class="form-check">
+              <input type="checkbox" id="is_live" onchange="toggleLive()">
+              <span>بث مباشر LIVE</span>
+            </label>
+          </div>
+        </div>
+        <div id="live-url-group" style="display:none" class="admin-form-card">
+          <div class="admin-form-card-title">رابط البث المباشر</div>
+          <div class="form-group">
+            <input type="url" class="form-control" id="live_url" placeholder="https://www.youtube.com/watch?v=...">
+            <small style="font-size:.75rem;color:#a3a3a3">يدعم روابط YouTube وأي رابط بث قابل للتضمين</small>
+          </div>
+        </div>
+
+        <div class="admin-form-card">
+          <div class="admin-form-card-title">الصور</div>
+          <div class="form-group">
+            <label class="form-label">الصورة الرئيسية الحالية</label>
+            <div id="current-main-image"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">تغيير الصورة الرئيسية</label>
+            <input type="file" class="form-control" id="main_image" accept="image/*" onchange="previewMainImage(event)">
+            <div id="main-image-preview" class="image-preview-wrap"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">الصور الداخلية الحالية</label>
+            <div id="current-images" class="image-preview-wrap"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">إضافة صور جديدة</label>
+            <input type="file" class="form-control" id="images" accept="image/*" multiple>
+          </div>
+          <input type="hidden" id="delete_images_list">
+        </div>
+
+        <!-- Poll -->
+        <div class="admin-form-card">
+          <div class="admin-form-card-title">استطلاع الرأي</div>
+          <div id="existing-poll" style="display:none; margin-bottom:1rem; padding:1rem; background:#f5f5f5; border:1px solid #e5e5e5">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem">
+              <strong id="existing-poll-question"></strong>
+              <button onclick="removePoll()" class="btn btn-sm btn-danger">حذف الاستطلاع</button>
+            </div>
+            <div id="existing-poll-results"></div>
+          </div>
+          <div class="form-check" style="margin-bottom:1rem">
+            <input type="checkbox" id="poll_enabled" onchange="togglePoll()">
+            <label for="poll_enabled" id="poll-check-label">إضافة استطلاع رأي</label>
+          </div>
+          <div id="poll-form" style="display:none">
+            <div class="form-group">
+              <label class="form-label">سؤال الاستطلاع</label>
+              <input type="text" class="form-control" id="poll_question">
+            </div>
+            <div class="form-group">
+              <label class="form-label">الخيارات</label>
+              <div class="poll-options-list" id="poll-options-list">
+                <div class="poll-option-row">
+                  <input type="text" class="form-control" name="poll_option" placeholder="الخيار الأول">
+                  <button class="btn btn-sm" onclick="removePollOption(this)" disabled>-</button>
+                </div>
+                <div class="poll-option-row">
+                  <input type="text" class="form-control" name="poll_option" placeholder="الخيار الثاني">
+                  <button class="btn btn-sm" onclick="removePollOption(this)" disabled>-</button>
+                </div>
+              </div>
+              <button class="btn btn-sm" onclick="addPollOption()" style="margin-top:0.5rem">+ إضافة خيار</button>
+            </div>
+            <div class="form-group">
+              <label class="form-label">تاريخ انتهاء التصويت</label>
+              <input type="datetime-local" class="form-control" id="poll_expires">
+            </div>
+          </div>
+        </div>
+
+        <!-- Counter -->
+        <div class="admin-form-card">
+          <div class="admin-form-card-title">عداد الوقت</div>
+          <div id="existing-counter" style="display:none; margin-bottom:1rem; padding:1rem; background:#f5f5f5; border:1px solid #e5e5e5">
+            <div style="display:flex; justify-content:space-between; align-items:center">
+              <strong>عداد نشط</strong>
+              <button onclick="removeCounter()" class="btn btn-sm btn-danger">حذف العداد</button>
+            </div>
+          </div>
+          <div class="form-check" style="margin-bottom:1rem">
+            <input type="checkbox" id="counter_enabled" onchange="toggleCounter()">
+            <label for="counter_enabled">إضافة / تحديث عداد وقت</label>
+          </div>
+          <div id="counter-form" style="display:none">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">نوع العداد</label>
+                <select class="form-control" id="counter_direction">
+                  <option value="up">تصاعدي</option>
+                  <option value="down">تنازلي</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">تاريخ البداية / الانتهاء</label>
+                <input type="datetime-local" class="form-control" id="counter_start_date">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">نص التسمية</label>
+                <input type="text" class="form-control" id="counter_label" value="منذ">
+              </div>
+              <div class="form-group">
+                <label class="form-label">نوع الخط</label>
+                <select class="form-control" id="counter_font_style">
+                  <option value="serif">Amiri (serif)</option>
+                  <option value="sans">Cairo (sans)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">لون الخلفية</label>
+                <input type="color" class="form-control" id="counter_bg_color" value="#000000" style="height:45px">
+              </div>
+              <div class="form-group">
+                <label class="form-label">لون النص</label>
+                <input type="color" class="form-control" id="counter_text_color" value="#ffffff" style="height:45px">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">تدرج لوني (CSS)</label>
+              <input type="text" class="form-control" id="counter_bg_gradient" placeholder="linear-gradient(...)">
+            </div>
+          </div>
+        </div>
+
+        <input type="hidden" id="remove_poll" value="0">
+        <input type="hidden" id="remove_counter" value="0">
+
+        <div style="display:flex; gap:0.75rem; justify-content:flex-end; padding-top:1rem">
+          <button onclick="submitNews()" class="btn btn-primary" style="padding:0.75rem 2rem">حفظ التغييرات</button>
+          <a href="/admin" class="btn btn-ghost">إلغاء</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/quill.min.js"></script>
+<script src="/js/utils.js"></script>
+<script>
+  let quill, newsId, existingNews;
+
+  function toggleLive() {
+    const on = document.getElementById('is_live').checked;
+    document.getElementById('live-url-group').style.display = on ? 'block' : 'none';
+  }
+  let imagesToDelete = [];
+
+  newsId = window.location.pathname.split('/').pop();
+
+  async function init() {
+    const me = await api('/api/me');
+    if (!me.user) { window.location.href = '/login'; return; }
+    document.getElementById('admin-user-name').textContent = me.user.full_name || me.user.username;
+
+    quill = new Quill('#quill-editor', {
+      theme: 'snow',
+      direction: 'rtl',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          [{ 'align': [] }],
+          ['link', 'image'],
+          ['clean']
+        ]
+      }
+    });
+
+    // Load departments
+    const depts = await api('/api/departments');
+    const sel = document.getElementById('department_id');
+    depts.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.id;
+      o.textContent = d.name;
+      sel.appendChild(o);
+    });
+
+    // Load news
+    try {
+      existingNews = await api('/api/news/' + newsId);
+      populateForm(existingNews);
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('form-wrap').style.display = 'block';
+      document.getElementById('page-title').textContent = 'تعديل: ' + existingNews.title.substring(0, 40);
+    } catch {
+      document.getElementById('loading-state').innerHTML = '<div class="empty-state"><p>الخبر غير موجود</p><a href="/admin" class="btn">العودة</a></div>';
+    }
+  }
+
+  function populateForm(news) {
+    document.getElementById('title').value = news.title;
+    document.getElementById('short_description').value = news.short_description || '';
+    quill.root.innerHTML = news.content || '';
+    document.getElementById('is_breaking').checked = !!news.is_breaking;
+    document.getElementById('is_featured').checked = !!news.is_featured;
+    document.getElementById('is_live').checked = !!news.is_live;
+    document.getElementById('live_url').value = news.live_url || '';
+    if (news.is_live) document.getElementById('live-url-group').style.display = 'block';
+    document.getElementById('category').value = news.category || 'general';
+    
+    // Set department
+    if (news.department_id) {
+      document.getElementById('department_id').value = news.department_id;
+    }
+    
+    // Main image
+    if (news.main_image) {
+      document.getElementById('current-main-image').innerHTML = `
+        <div class="image-preview-item" style="width:200px; height:150px">
+          <img src="${news.main_image}" style="width:100%; height:100%; object-fit:cover">
+        </div>
+      `;
+    }
+    
+    // Gallery images
+    const images = Array.isArray(news.images) ? news.images : [];
+    if (images.length) {
+      document.getElementById('current-images').innerHTML = images.map(img => `
+        <div class="image-preview-item" data-img="${img}">
+          <img src="${img}">
+          <button class="image-preview-remove" onclick="markDeleteImage('${img}', this.parentElement)" title="حذف">X</button>
+        </div>
+      `).join('');
+    }
+    
+    // Poll
+    if (news.poll) {
+      document.getElementById('existing-poll').style.display = 'block';
+      document.getElementById('existing-poll-question').textContent = news.poll.question;
+      const totalVotes = news.poll.total_votes || 0;
+      const votesMap = {};
+      (news.poll.votes || []).forEach(v => votesMap[v.option_index] = v.count);
+      document.getElementById('existing-poll-results').innerHTML = news.poll.options.map((opt, i) => {
+        const v = votesMap[i] || 0;
+        const pct = totalVotes > 0 ? Math.round(v / totalVotes * 100) : 0;
+        return `<div style="font-size:0.85rem; margin-bottom:0.25rem">${opt}: ${v} صوت (${pct}%)</div>`;
+      }).join('') + `<div style="font-size:0.8rem; color:#737373; margin-top:0.5rem">مجموع: ${totalVotes} صوت</div>`;
+      document.getElementById('poll-check-label').textContent = 'استبدال الاستطلاع';
+    }
+    
+    // Counter
+    if (news.counter) {
+      document.getElementById('existing-counter').style.display = 'block';
+      // Pre-fill counter form
+      document.getElementById('counter_direction').value = news.counter.direction || 'up';
+      if (news.counter.start_date) {
+        const d = new Date(news.counter.start_date);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        document.getElementById('counter_start_date').value = d.toISOString().slice(0, 16);
+      }
+      document.getElementById('counter_label').value = news.counter.label || 'منذ';
+      document.getElementById('counter_bg_color').value = news.counter.bg_color || '#000000';
+      document.getElementById('counter_text_color').value = news.counter.text_color || '#ffffff';
+      document.getElementById('counter_bg_gradient').value = news.counter.bg_gradient || '';
+      document.getElementById('counter_font_style').value = news.counter.font_style || 'serif';
+    } else {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      document.getElementById('counter_start_date').value = now.toISOString().slice(0, 16);
+    }
+  }
+
+  function markDeleteImage(imgPath, el) {
+    imagesToDelete.push(imgPath);
+    el.style.opacity = '0.3';
+    el.querySelector('.image-preview-remove').textContent = 'محذوف';
+    el.querySelector('.image-preview-remove').onclick = null;
+  }
+
+  function togglePoll() { document.getElementById('poll-form').style.display = document.getElementById('poll_enabled').checked ? 'block' : 'none'; }
+  function toggleCounter() { document.getElementById('counter-form').style.display = document.getElementById('counter_enabled').checked ? 'block' : 'none'; }
+
+  function addPollOption() {
+    const list = document.getElementById('poll-options-list');
+    const row = document.createElement('div');
+    row.className = 'poll-option-row';
+    row.innerHTML = `<input type="text" class="form-control" name="poll_option"><button class="btn btn-sm" onclick="removePollOption(this)">-</button>`;
+    list.appendChild(row);
+    updateRemoveButtons();
+  }
+  function removePollOption(btn) { btn.parentElement.remove(); updateRemoveButtons(); }
+  function updateRemoveButtons() {
+    const rows = document.querySelectorAll('.poll-option-row');
+    rows.forEach(r => r.querySelector('button').disabled = rows.length <= 2);
+  }
+
+  function removePoll() {
+    document.getElementById('remove_poll').value = '1';
+    document.getElementById('existing-poll').style.display = 'none';
+    showToast('سيتم حذف الاستطلاع عند الحفظ');
+  }
+
+  function removeCounter() {
+    document.getElementById('remove_counter').value = '1';
+    document.getElementById('existing-counter').style.display = 'none';
+    showToast('سيتم حذف العداد عند الحفظ');
+  }
+
+  function previewMainImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const prev = document.getElementById('main-image-preview');
+    const reader = new FileReader();
+    reader.onload = ev => { prev.innerHTML = `<div class="image-preview-item"><img src="${ev.target.result}"></div>`; };
+    reader.readAsDataURL(file);
+  }
+
+  async function submitNews() {
+    const errEl = document.getElementById('form-error');
+    const succEl = document.getElementById('form-success');
+    errEl.style.display = 'none';
+    succEl.style.display = 'none';
+    
+    const title = document.getElementById('title').value.trim();
+    if (!title) { errEl.textContent = 'العنوان مطلوب'; errEl.style.display = 'block'; return; }
+    
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('short_description', document.getElementById('short_description').value);
+    fd.append('content', quill.root.innerHTML);
+    fd.append('department_id', document.getElementById('department_id').value);
+    fd.append('category', document.getElementById('category').value);
+    fd.append('is_breaking', document.getElementById('is_breaking').checked ? '1' : '0');
+    fd.append('is_featured', document.getElementById('is_featured').checked ? '1' : '0');
+    fd.append('is_live', document.getElementById('is_live').checked ? '1' : '0');
+    fd.append('live_url', document.getElementById('live_url').value || '');
+    fd.append('remove_poll', document.getElementById('remove_poll').value);
+    fd.append('remove_counter', document.getElementById('remove_counter').value);
+    
+    imagesToDelete.forEach(img => fd.append('delete_images', img));
+    
+    const mainImg = document.getElementById('main_image').files[0];
+    if (mainImg) fd.append('main_image', mainImg);
+    Array.from(document.getElementById('images').files).forEach(f => fd.append('images', f));
+    
+    if (document.getElementById('poll_enabled').checked) {
+      const q = document.getElementById('poll_question').value.trim();
+      if (q) {
+        fd.append('poll_question', q);
+        document.querySelectorAll('[name="poll_option"]').forEach(inp => { if (inp.value.trim()) fd.append('poll_options', inp.value.trim()); });
+        const expires = document.getElementById('poll_expires').value;
+        if (expires) fd.append('poll_expires', expires);
+      }
+    }
+    
+    if (document.getElementById('counter_enabled').checked) {
+      fd.append('counter_enabled', '1');
+      fd.append('counter_direction', document.getElementById('counter_direction').value);
+      fd.append('counter_start_date', document.getElementById('counter_start_date').value);
+      fd.append('counter_label', document.getElementById('counter_label').value);
+      fd.append('counter_bg_color', document.getElementById('counter_bg_color').value);
+      fd.append('counter_text_color', document.getElementById('counter_text_color').value);
+      fd.append('counter_bg_gradient', document.getElementById('counter_bg_gradient').value);
+      fd.append('counter_font_style', document.getElementById('counter_font_style').value);
+    }
+    
+    try {
+      await apiForm('/api/news/' + newsId, fd, 'PUT');
+      succEl.textContent = 'تم حفظ التغييرات بنجاح';
+      succEl.style.display = 'block';
+      window.scrollTo(0, 0);
+      showToast('تم حفظ التغييرات');
+      setTimeout(() => window.location.href = '/news/' + newsId, 1200);
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      window.scrollTo(0, 0);
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

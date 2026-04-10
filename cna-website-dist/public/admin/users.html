@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - إدارة المستخدمين</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="admin-wrap">
+  <div class="admin-sidebar">
+    <div class="admin-sidebar-logo">
+      <div class="admin-logo-en">CNA</div>
+      <div class="admin-logo-ar">وكالة الأنباء التنسيقية</div>
+    </div>
+    <div class="admin-user-info">
+      <div class="admin-user-name" id="admin-user-name">...</div>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">الرئيسية</div>
+      <a href="/admin" class="admin-nav-link"><span class="admin-nav-icon">&#9632;</span> لوحة التحكم</a>
+      <a href="/" class="admin-nav-link" target="_blank"><span class="admin-nav-icon">&#9633;</span> عرض الموقع</a>
+      <div class="admin-nav-section">الأخبار</div>
+      <a href="/admin/create" class="admin-nav-link"><span class="admin-nav-icon">+</span> إنشاء خبر</a>
+      <div class="admin-nav-section">الإعدادات</div>
+      <a href="/admin/departments" class="admin-nav-link"><span class="admin-nav-icon">&#9650;</span> الشعب</a>
+      <a href="/admin/settings" class="admin-nav-link"><span class="admin-nav-icon">&#9881;</span> الإعدادات</a>
+      <a href="/admin/users" class="admin-nav-link active"><span class="admin-nav-icon">&#9786;</span> المستخدمين</a>
+    </nav>
+    <div style="padding:1.5rem; border-top:1px solid rgba(255,255,255,0.1)">
+      <button onclick="logout()" class="btn" style="width:100%; border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.5); font-size:0.8rem">تسجيل الخروج</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title">إدارة المستخدمين</h1>
+      <button onclick="toggleAddForm()" class="btn btn-primary">+ إضافة مستخدم</button>
+    </div>
+    <div class="admin-content">
+      
+      <div class="admin-form-card" id="add-form" style="display:none">
+        <div class="admin-form-card-title">إضافة مستخدم جديد</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">اسم المستخدم</label>
+            <input type="text" class="form-control" id="new-username">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الاسم الكامل</label>
+            <input type="text" class="form-control" id="new-fullname">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">كلمة المرور</label>
+            <input type="password" class="form-control" id="new-password">
+          </div>
+          <div class="form-group">
+            <label class="form-label">الدور</label>
+            <select class="form-control" id="new-role">
+              <option value="editor">محرر</option>
+              <option value="admin">مدير</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:0.5rem">
+          <button onclick="addUser()" class="btn btn-primary">إضافة</button>
+          <button onclick="toggleAddForm()" class="btn btn-ghost">إلغاء</button>
+        </div>
+      </div>
+
+      <div class="admin-table-wrap">
+        <div id="users-table"><div class="loading"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/utils.js"></script>
+<script>
+  let myId;
+
+  async function init() {
+    const me = await api('/api/me');
+    if (!me.user) { window.location.href = '/login'; return; }
+    if (me.user.role !== 'admin') { window.location.href = '/admin'; return; }
+    myId = me.user.id;
+    document.getElementById('admin-user-name').textContent = me.user.full_name || me.user.username;
+    loadUsers();
+  }
+
+  async function loadUsers() {
+    try {
+      const users = await api('/api/users');
+      document.getElementById('users-table').innerHTML = `
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>اسم المستخدم</th>
+              <th>الاسم الكامل</th>
+              <th>الدور</th>
+              <th>تاريخ الإنشاء</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr>
+                <td style="color:#a3a3a3; font-size:0.8rem">${u.id}</td>
+                <td style="font-weight:600">${u.username}</td>
+                <td>${u.full_name || '-'}</td>
+                <td><span style="background:${u.role==='admin'?'#0a0a0a':'#f5f5f5'}; color:${u.role==='admin'?'#fff':'#404040'}; padding:0.2rem 0.6rem; font-size:0.75rem; font-weight:700">${u.role === 'admin' ? 'مدير' : 'محرر'}</span></td>
+                <td style="font-size:0.8rem; color:#737373">${formatDate(u.created_at)}</td>
+                <td>${u.id !== myId ? `<button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">حذف</button>` : '<span style="font-size:0.8rem; color:#a3a3a3">حسابي</span>'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  function toggleAddForm() {
+    const f = document.getElementById('add-form');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function addUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-password').value;
+    const full_name = document.getElementById('new-fullname').value.trim();
+    const role = document.getElementById('new-role').value;
+    if (!username || !password) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
+    try {
+      await api('/api/users', { method: 'POST', body: JSON.stringify({ username, password, full_name, role }) });
+      showToast('تم إضافة المستخدم بنجاح');
+      document.getElementById('new-username').value = '';
+      document.getElementById('new-password').value = '';
+      document.getElementById('new-fullname').value = '';
+      toggleAddForm();
+      loadUsers();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  async function deleteUser(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
+    try {
+      await api('/api/users/' + id, { method: 'DELETE' });
+      showToast('تم حذف المستخدم');
+      loadUsers();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - إنشاء خبر جديد</title>
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/vendor/quill.snow.css">
+</head>
+<body>
+<div class="admin-wrap">
+  <div class="admin-sidebar">
+    <div class="admin-sidebar-logo">
+    <a href="/" class="site-logo">
+      <img src="/img/cna.png" alt="CNA">
+        
+      </div>
+      <div class="admin-logo-ar">وكالة الأنباء التنسيقية</div>
+    </div>
+    <div class="admin-user-info">
+      <div class="admin-user-name" id="admin-user-name">...</div>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">الرئيسية</div>
+      <a href="/admin" class="admin-nav-link"><span class="admin-nav-icon">&#9632;</span> لوحة التحكم</a>
+      <a href="/" class="admin-nav-link" target="_blank"><span class="admin-nav-icon">&#9633;</span> عرض الموقع</a>
+      <div class="admin-nav-section">الأخبار</div>
+      <a href="/admin/create" class="admin-nav-link active"><span class="admin-nav-icon">+</span> إنشاء خبر جديد</a>
+      <div class="admin-nav-section">الإعدادات</div>
+      <a href="/admin/departments" class="admin-nav-link"><span class="admin-nav-icon">&#9650;</span> الشعب</a>
+      <a href="/admin/settings" class="admin-nav-link"><span class="admin-nav-icon">&#9881;</span> الإعدادات</a>
+      <a href="/admin/users" class="admin-nav-link"><span class="admin-nav-icon">&#9786;</span> المستخدمين</a>
+    </nav>
+    <div style="padding:1.5rem; border-top:1px solid rgba(255,255,255,0.1)">
+      <button onclick="logout()" class="btn" style="width:100%; border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.5); font-size:0.8rem">تسجيل الخروج</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title">إنشاء خبر جديد</h1>
+      <div style="display:flex; gap:0.5rem">
+        <button onclick="submitNews()" class="btn btn-primary">نشر الخبر</button>
+        <a href="/admin" class="btn btn-ghost">إلغاء</a>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div id="form-error" class="alert alert-error" style="display:none"></div>
+      <div id="form-success" class="alert alert-success" style="display:none"></div>
+
+      <!-- Basic Info -->
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">معلومات الخبر الأساسية</div>
+        <div class="form-group">
+          <label class="form-label">عنوان الخبر *</label>
+          <input type="text" class="form-control" id="title" placeholder="أدخل عنوان الخبر">
+        </div>
+        <div class="form-group">
+          <label class="form-label">العنوان بالإنجليزية (اختياري)</label>
+          <input type="text" class="form-control ltr-input" id="title_en" placeholder="English title (optional)" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الوصف المختصر</label>
+          <textarea class="form-control" id="short_description" placeholder="وصف مختصر يظهر في بطاقة الخبر" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">الوصف المختصر بالإنجليزية (اختياري)</label>
+          <textarea class="form-control ltr-input" id="short_description_en" placeholder="Short description in English (optional)" rows="2" dir="ltr"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">المحتوى الكامل</label>
+          <div id="quill-editor"></div>
+          <input type="hidden" id="content">
+        </div>
+        <div class="form-group">
+          <label class="form-label">لغة الخبر</label>
+          <select class="form-control" id="lang_field">
+            <option value="ar">عربي فقط</option>
+            <option value="en">إنجليزي فقط</option>
+            <option value="both">ثنائي اللغة</option>
+          </select>
+        </div>
+        <div class="form-group" id="content-en-group" style="display:none">
+          <label class="form-label">المحتوى الكامل بالإنجليزية</label>
+          <div id="quill-editor-en"></div>
+        </div>
+      </div>
+
+      <!-- Classification -->
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">التصنيف والحالة</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">الشعبة</label>
+            <select class="form-control" id="department_id">
+              <option value="">-- اختر الشعبة --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">التصنيف</label>
+            <select class="form-control" id="category">
+              <option value="general">عام</option>
+              <option value="politics">سياسة</option>
+              <option value="economy">اقتصاد</option>
+              <option value="security">أمن</option>
+              <option value="culture">ثقافة</option>
+              <option value="international">دولي</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:2rem; flex-wrap:wrap">
+          <label class="form-check">
+            <input type="checkbox" id="is_breaking">
+            <span>خبر عاجل (يظهر في الشريط المتحرك)</span>
+          </label>
+          <label class="form-check">
+            <input type="checkbox" id="is_featured">
+            <span>خبر مميز (يظهر في مربع الخبر الرئيسي)</span>
+          </label>
+          <label class="form-check">
+            <input type="checkbox" id="is_live" onchange="toggleLive()">
+            <span>بث مباشر LIVE</span>
+          </label>
+        </div>
+        <div id="live-url-group" style="display:none" class="form-group">
+          <label class="form-label">رابط البث المباشر</label>
+          <input type="url" class="form-control" id="live_url" placeholder="https://www.youtube.com/watch?v=... أو أي رابط iframe">
+          <small style="font-size:.75rem; color:#a3a3a3">يدعم روابط YouTube وأي رابط بث مباشر قابل للتضمين</small>
+        </div>
+      </div>
+
+      <!-- Images -->
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">الصور</div>
+        <div class="form-group">
+          <label class="form-label">الصورة الرئيسية</label>
+          <input type="file" class="form-control" id="main_image" accept="image/*" onchange="previewMainImage(event)">
+          <div id="main-image-preview" class="image-preview-wrap"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">صور داخلية (متعددة)</label>
+          <input type="file" class="form-control" id="images" accept="image/*" multiple onchange="previewImages(event)">
+          <div id="images-preview" class="image-preview-wrap"></div>
+        </div>
+      </div>
+
+      <!-- Hero Card Appearance -->
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">تصميم بطاقة الخبر المميز (يطبق عند تفعيل "خبر مميز")</div>
+        <div class="form-group">
+          <label class="form-label">نوع الخلفية</label>
+          <select class="form-control" id="hero_bg_type" onchange="toggleHeroBg()">
+            <option value="white">أبيض (افتراضي)</option>
+            <option value="color">لون محدد</option>
+            <option value="gradient">تدرج لوني</option>
+            <option value="image">صورة من الجهاز</option>
+          </select>
+        </div>
+        <div id="hero-color-group" style="display:none" class="form-group">
+          <label class="form-label">لون الخلفية</label>
+          <input type="color" class="form-control" id="hero_bg_color" value="#0a0a0a" style="height:45px">
+        </div>
+        <div id="hero-gradient-group" style="display:none" class="form-group">
+          <label class="form-label">CSS Gradient</label>
+          <input type="text" class="form-control ltr-input" id="hero_bg_gradient" placeholder="linear-gradient(135deg, #000 0%, #1a1a2e 100%)" dir="ltr">
+          <small style="font-size:.75rem;color:#a3a3a3">أمثلة: linear-gradient(135deg, #667eea, #764ba2) | linear-gradient(to bottom, #000, #444)</small>
+        </div>
+        <div id="hero-image-group" style="display:none" class="form-group">
+          <label class="form-label">صورة الخلفية</label>
+          <input type="file" class="form-control" id="hero_bg_image_file" accept="image/*">
+        </div>
+      </div>
+
+      <!-- Poll -->
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">استطلاع الرأي (اختياري)</div>
+        <div class="form-check" style="margin-bottom:1rem">
+          <input type="checkbox" id="poll_enabled" onchange="togglePoll()">
+          <label for="poll_enabled">إضافة استطلاع رأي لهذا الخبر</label>
+        </div>
+        <div id="poll-form" style="display:none">
+          <div class="form-group">
+            <label class="form-label">سؤال الاستطلاع</label>
+            <input type="text" class="form-control" id="poll_question" placeholder="اكتب سؤال الاستطلاع">
+          </div>
+          <div class="form-group">
+            <label class="form-label">خيارات التصويت</label>
+            <div class="poll-options-list" id="poll-options-list">
+              <div class="poll-option-row">
+                <input type="text" class="form-control" name="poll_option" placeholder="الخيار الأول">
+                <button type="button" class="btn btn-sm" onclick="removePollOption(this)" disabled>-</button>
+              </div>
+              <div class="poll-option-row">
+                <input type="text" class="form-control" name="poll_option" placeholder="الخيار الثاني">
+                <button type="button" class="btn btn-sm" onclick="removePollOption(this)" disabled>-</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm" onclick="addPollOption()" style="margin-top:0.5rem">+ إضافة خيار</button>
+          </div>
+          <div class="form-group">
+            <label class="form-label">تاريخ انتهاء التصويت (اختياري)</label>
+            <input type="datetime-local" class="form-control" id="poll_expires">
+          </div>
+        </div>
+      </div>
+
+      <!-- Counter -->
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">عداد الوقت (يظهر فقط مع الخبر المميز)</div>
+        <div class="form-check" style="margin-bottom:1rem">
+          <input type="checkbox" id="counter_enabled" onchange="toggleCounter()">
+          <label for="counter_enabled">إضافة عداد وقت</label>
+        </div>
+        <div id="counter-form" style="display:none">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">نوع العداد</label>
+              <select class="form-control" id="counter_direction">
+                <option value="up">تصاعدي (منذ تاريخ محدد)</option>
+                <option value="down">تنازلي (حتى تاريخ محدد)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">تاريخ البداية / الانتهاء</label>
+              <input type="datetime-local" class="form-control" id="counter_start_date">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">نص التسمية (مثل: منذ، حتى)</label>
+            <input type="text" class="form-control" id="counter_label" value="منذ" placeholder="منذ">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">لون الخلفية</label>
+              <input type="color" class="form-control" id="counter_bg_color" value="#000000" style="height:45px">
+            </div>
+            <div class="form-group">
+              <label class="form-label">لون النص</label>
+              <input type="color" class="form-control" id="counter_text_color" value="#ffffff" style="height:45px">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">تدرج لوني (CSS gradient - اختياري)</label>
+            <input type="text" class="form-control" id="counter_bg_gradient" placeholder="مثال: linear-gradient(135deg, #000 0%, #333 100%)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">نوع الخط</label>
+            <select class="form-control" id="counter_font_style">
+              <option value="serif">خط مع عرائش (Amiri)</option>
+              <option value="sans">خط بدون عرائش (Cairo)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:0.75rem; justify-content:flex-end; padding-top:1rem">
+        <button onclick="submitNews()" class="btn btn-primary" style="padding:0.75rem 2rem">نشر الخبر</button>
+        <a href="/admin" class="btn btn-ghost">إلغاء</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/quill.min.js"></script>
+<script src="/js/utils.js"></script>
+<script>
+  let quill;
+
+  async function init() {
+    const me = await api('/api/me');
+    if (!me.user) { window.location.href = '/login?redirect=/admin/create'; return; }
+    document.getElementById('admin-user-name').textContent = me.user.full_name || me.user.username;
+    
+    // Init Quill
+    quill = new Quill('#quill-editor', {
+      theme: 'snow',
+      direction: 'rtl',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          [{ 'align': [] }],
+          ['link', 'image'],
+          ['clean']
+        ]
+      },
+      placeholder: 'اكتب محتوى الخبر هنا...'
+    });
+    
+    // Load departments
+    const depts = await api('/api/departments');
+    const sel = document.getElementById('department_id');
+    depts.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.id;
+      o.textContent = d.name;
+      sel.appendChild(o);
+    });
+    
+    // Set default counter date to now
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('counter_start_date').value = now.toISOString().slice(0, 16);
+  }
+
+  let quillEn;
+
+  function toggleHeroBg() {
+    const t=document.getElementById('hero_bg_type').value;
+    document.getElementById('hero-color-group').style.display=t==='color'?'block':'none';
+    document.getElementById('hero-gradient-group').style.display=t==='gradient'?'block':'none';
+    document.getElementById('hero-image-group').style.display=t==='image'?'block':'none';
+  }
+
+  document.getElementById('lang_field').addEventListener('change', function(){
+    const show=this.value==='en'||this.value==='both';
+    document.getElementById('content-en-group').style.display=show?'block':'none';
+    if(show && !quillEn) {
+      quillEn=new Quill('#quill-editor-en',{theme:'snow',modules:{toolbar:[[{header:[1,2,3,false]}],['bold','italic','underline'],[{color:[]},{background:[]}],[{size:['small',false,'large','huge']}],[{list:'ordered'},{list:'bullet'}],[{align:[]}],['link','image'],['clean']]},placeholder:'English content...'});
+      document.getElementById('quill-editor-en').querySelector('.ql-editor').classList.add('ltr-editor');
+    }
+  });
+
+  function toggleLive() {
+    const on = document.getElementById('is_live').checked;
+    document.getElementById('live-url-group').style.display = on ? 'block' : 'none';
+  }
+
+  function togglePoll() {
+    document.getElementById('poll-form').style.display = document.getElementById('poll_enabled').checked ? 'block' : 'none';
+  }
+
+  function toggleCounter() {
+    document.getElementById('counter-form').style.display = document.getElementById('counter_enabled').checked ? 'block' : 'none';
+  }
+
+  function addPollOption() {
+    const list = document.getElementById('poll-options-list');
+    const count = list.children.length;
+    const row = document.createElement('div');
+    row.className = 'poll-option-row';
+    row.innerHTML = `
+      <input type="text" class="form-control" name="poll_option" placeholder="الخيار ${count + 1}">
+      <button type="button" class="btn btn-sm" onclick="removePollOption(this)">-</button>
+    `;
+    list.appendChild(row);
+    updateRemoveButtons();
+  }
+
+  function removePollOption(btn) {
+    btn.parentElement.remove();
+    updateRemoveButtons();
+  }
+
+  function updateRemoveButtons() {
+    const rows = document.querySelectorAll('.poll-option-row');
+    rows.forEach((r, i) => {
+      const btn = r.querySelector('button');
+      btn.disabled = rows.length <= 2;
+    });
+  }
+
+  function previewMainImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const prev = document.getElementById('main-image-preview');
+    const reader = new FileReader();
+    reader.onload = ev => { prev.innerHTML = `<div class="image-preview-item"><img src="${ev.target.result}"></div>`; };
+    reader.readAsDataURL(file);
+  }
+
+  function previewImages(e) {
+    const prev = document.getElementById('images-preview');
+    prev.innerHTML = '';
+    Array.from(e.target.files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const div = document.createElement('div');
+        div.className = 'image-preview-item';
+        div.innerHTML = `<img src="${ev.target.result}">`;
+        prev.appendChild(div);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function submitNews() {
+    const errEl = document.getElementById('form-error');
+    const succEl = document.getElementById('form-success');
+    errEl.style.display = 'none';
+    succEl.style.display = 'none';
+    
+    const title = document.getElementById('title').value.trim();
+    if (!title) {
+      errEl.textContent = 'عنوان الخبر مطلوب';
+      errEl.style.display = 'block';
+      window.scrollTo(0, 0);
+      return;
+    }
+    
+    // Get Quill content
+    const content = quill.root.innerHTML;
+    
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('short_description', document.getElementById('short_description').value);
+    fd.append('content', content);
+    fd.append('department_id', document.getElementById('department_id').value);
+    fd.append('category', document.getElementById('category').value);
+    fd.append('is_breaking', document.getElementById('is_breaking').checked ? '1' : '0');
+    fd.append('is_featured', document.getElementById('is_featured').checked ? '1' : '0');
+    fd.append('is_live', document.getElementById('is_live').checked ? '1' : '0');
+    fd.append('title_en', document.getElementById('title_en').value||'');
+    fd.append('short_description_en', document.getElementById('short_description_en').value||'');
+    fd.append('lang', document.getElementById('lang_field').value);
+    if(quillEn) fd.append('content_en', quillEn.root.innerHTML);
+    fd.append('hero_bg_type', document.getElementById('hero_bg_type').value);
+    fd.append('hero_bg_color', document.getElementById('hero_bg_color').value||'');
+    fd.append('hero_bg_gradient', document.getElementById('hero_bg_gradient').value||'');
+    const heroBgFile=document.getElementById('hero_bg_image_file').files[0];
+    if(heroBgFile) fd.append('hero_bg_image', heroBgFile);
+    fd.append('live_url', document.getElementById('live_url').value || '');
+    
+    // Main image
+    const mainImg = document.getElementById('main_image').files[0];
+    if (mainImg) fd.append('main_image', mainImg);
+    
+    // Multiple images
+    Array.from(document.getElementById('images').files).forEach(f => fd.append('images', f));
+    
+    // Poll
+    if (document.getElementById('poll_enabled').checked) {
+      const q = document.getElementById('poll_question').value.trim();
+      if (q) {
+        fd.append('poll_question', q);
+        document.querySelectorAll('[name="poll_option"]').forEach(inp => {
+          if (inp.value.trim()) fd.append('poll_options', inp.value.trim());
+        });
+        const expires = document.getElementById('poll_expires').value;
+        if (expires) fd.append('poll_expires', expires);
+      }
+    }
+    
+    // Counter
+    if (document.getElementById('counter_enabled').checked) {
+      fd.append('counter_enabled', '1');
+      fd.append('counter_direction', document.getElementById('counter_direction').value);
+      fd.append('counter_start_date', document.getElementById('counter_start_date').value);
+      fd.append('counter_label', document.getElementById('counter_label').value);
+      fd.append('counter_bg_color', document.getElementById('counter_bg_color').value);
+      fd.append('counter_text_color', document.getElementById('counter_text_color').value);
+      fd.append('counter_bg_gradient', document.getElementById('counter_bg_gradient').value);
+      fd.append('counter_font_style', document.getElementById('counter_font_style').value);
+    }
+    
+    try {
+      const result = await apiForm('/api/news', fd, 'POST');
+      succEl.textContent = 'تم نشر الخبر بنجاح! جاري التحويل...';
+      succEl.style.display = 'block';
+      window.scrollTo(0, 0);
+      setTimeout(() => { window.location.href = '/news/' + result.id; }, 1500);
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      window.scrollTo(0, 0);
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

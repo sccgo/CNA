@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#0a0a0a"/>
+  <text x="32" y="46" font-family="Georgia,serif" font-size="28" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="1">CNA</text>
+  <rect x="8" y="52" width="48" height="3" fill="#ffffff"/>
+</svg>
