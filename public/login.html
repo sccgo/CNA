@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - بوابة الدخول</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="logo-en">CNA</span>
+      <div class="login-divider"></div>
+      <span class="logo-ar">وكالة الأنباء التنسيقية</span>
+    </div>
+    <p class="login-title">بوابة الدخول الموحد</p>
+    
+    <div id="error-msg" class="alert alert-error" style="display:none"></div>
+    
+    <div class="form-group">
+      <label class="form-label">اسم المستخدم</label>
+      <input type="text" class="form-control" id="username" autocomplete="username" placeholder="أدخل اسم المستخدم">
+    </div>
+    <div class="form-group">
+      <label class="form-label">كلمة المرور</label>
+      <input type="password" class="form-control" id="password" autocomplete="current-password" placeholder="أدخل كلمة المرور">
+    </div>
+    
+    <button class="btn btn-primary" style="width:100%; padding:0.85rem; font-size:1rem; margin-top:0.5rem" onclick="login()" id="login-btn">
+      دخول
+    </button>
+    
+    <div style="margin-top:1.5rem; text-align:center">
+      <a href="/" style="font-size:0.85rem; color:#737373">العودة للموقع</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/utils.js"></script>
+<script>
+  // Check if already logged in
+  api('/api/me').then(data => {
+    if (data.user) {
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/admin';
+      window.location.href = redirect;
+    }
+  }).catch(() => {});
+
+  // Enter key
+  document.getElementById('password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') login();
+  });
+  document.getElementById('username').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('password').focus();
+  });
+
+  async function login() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl = document.getElementById('error-msg');
+    const btn = document.getElementById('login-btn');
+    
+    if (!username || !password) {
+      errEl.textContent = 'يرجى إدخال اسم المستخدم وكلمة المرور';
+      errEl.style.display = 'block';
+      return;
+    }
+    
+    btn.textContent = '...';
+    btn.disabled = true;
+    errEl.style.display = 'none';
+    
+    try {
+      await api('/api/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      });
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/admin';
+      window.location.href = redirect;
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      btn.textContent = 'دخول';
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

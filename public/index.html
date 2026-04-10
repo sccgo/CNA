@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>وكالة الأنباء التنسيقية - CNA</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="header-top">
+    <a href="/" class="site-logo">
+      <span class="logo-en">CNA</span>
+      <span class="logo-ar">وكالة الأنباء التنسيقية</span>
+      <div class="logo-line"></div>
+    </a>
+    <form class="search-form" onsubmit="handleSearch(event)">
+      <input type="text" id="search-input" placeholder="ابحث في الأخبار..." autocomplete="off">
+      <button type="submit">بحث</button>
+    </form>
+    <div class="header-actions" id="header-actions">
+      <a href="/login" class="btn btn-sm btn-primary">دخول</a>
+    </div>
+  </div>
+  <nav class="nav-bar">
+    <div class="nav-inner" id="nav-depts">
+      <a class="nav-link active" href="/">جميع الأخبار</a>
+    </div>
+  </nav>
+</header>
+
+<!-- BREAKING TICKER -->
+<div class="breaking-ticker" id="breaking-ticker" style="display:none">
+  <div class="ticker-label">عاجل</div>
+  <div class="ticker-track">
+    <div class="ticker-content" id="ticker-content"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main class="main-content">
+  <div class="container">
+
+    <!-- HERO FEATURED NEWS -->
+    <section class="hero-section" id="hero-section" style="display:none"></section>
+
+    <!-- NEWS LIST -->
+    <div class="content-with-sidebar">
+      <div>
+        <!-- FILTERS -->
+        <div class="filters-bar" id="filters-bar">
+          <button class="filter-chip active" onclick="setFilter('all')">الكل</button>
+          <button class="filter-chip" onclick="setFilter('breaking')">عاجل</button>
+        </div>
+
+        <div class="controls-row">
+          <span class="results-info" id="results-info"></span>
+          <select class="sort-select" id="sort-select" onchange="loadNews(1)">
+            <option value="latest">الأحدث</option>
+            <option value="oldest">الأقدم</option>
+            <option value="views">الأكثر مشاهدة</option>
+          </select>
+        </div>
+
+        <div class="news-section-header">
+          <h2 class="section-title" id="section-title">آخر الأخبار</h2>
+        </div>
+
+        <div id="news-grid" class="news-grid">
+          <div class="loading"></div>
+        </div>
+        <div id="pagination"></div>
+      </div>
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="sidebar-widget">
+          <h3 class="sidebar-widget-title">الأخبار العاجلة</h3>
+          <div id="sidebar-breaking"><div class="loading"></div></div>
+        </div>
+        <div class="sidebar-widget">
+          <h3 class="sidebar-widget-title">الأرشيف</h3>
+          <div id="sidebar-archive"></div>
+        </div>
+        <div class="sidebar-widget">
+          <h3 class="sidebar-widget-title">الشعب</h3>
+          <div id="sidebar-depts"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-logo-en">CNA</div>
+        <div class="footer-logo-ar">وكالة الأنباء التنسيقية</div>
+        <p class="footer-desc">المصدر الرسمي للأنباء والمعلومات الموثوقة. نلتزم بالدقة والمهنية في نقل الخبر.</p>
+      </div>
+      <div>
+        <div class="footer-col-title">التصفح</div>
+        <div class="footer-links" id="footer-dept-links"></div>
+      </div>
+      <div>
+        <div class="footer-col-title">الوكالة</div>
+        <div class="footer-links">
+          <a href="/archive">الأرشيف</a>
+          <a href="/?filter=breaking">الأخبار العاجلة</a>
+          <a href="/login">بوابة الدخول</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span id="footer-year"></span>
+      <span>وكالة الأنباء التنسيقية - جميع الحقوق محفوظة</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/utils.js"></script>
+<script>
+  let currentPage = 1;
+  let currentFilter = 'all';
+  let currentDept = '';
+  let settings = {};
+
+  document.getElementById('footer-year').textContent = `${new Date().getFullYear()}`;
+
+  // Check URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('filter') === 'breaking') currentFilter = 'breaking';
+  if (urlParams.get('dept')) currentDept = urlParams.get('dept');
+  if (urlParams.get('q')) {
+    document.getElementById('search-input').value = urlParams.get('q');
+    document.getElementById('section-title').textContent = 'نتائج البحث: ' + urlParams.get('q');
+  }
+
+  // Also handle /category/ URLs
+  const pathMatch = window.location.pathname.match(/\/category\/(.+)/);
+  if (pathMatch) currentDept = pathMatch[1];
+
+  async function init() {
+    await initHeader();
+    loadSettings();
+    loadBreakingTicker();
+    loadFeaturedNews();
+    loadDepartments();
+    loadArchiveSidebar();
+    loadNews(1);
+  }
+
+  async function loadSettings() {
+    try {
+      settings = await api('/api/settings');
+      // Apply ticker settings
+      const ticker = document.getElementById('breaking-ticker');
+      if (settings.ticker_bg) ticker.style.background = settings.ticker_bg;
+      if (settings.ticker_text_color) ticker.style.color = settings.ticker_text_color;
+    } catch {}
+  }
+
+  async function loadBreakingTicker() {
+    try {
+      const news = await api('/api/news/breaking');
+      if (!news.length) return;
+      
+      const ticker = document.getElementById('breaking-ticker');
+      const content = document.getElementById('ticker-content');
+      ticker.style.display = 'flex';
+      
+      // Duplicate for seamless loop
+      const items = [...news, ...news].map(n => 
+        `<span class="ticker-item" onclick="location.href='/news/${n.id}'">${n.title}</span>`
+      ).join('');
+      content.innerHTML = items;
+      
+      // Set animation speed from settings
+      const speed = settings.ticker_speed || 40;
+      const duration = Math.max(10, news.length * speed / 3);
+      content.style.animationDuration = duration + 's';
+    } catch {}
+  }
+
+  async function loadFeaturedNews() {
+    try {
+      const news = await api('/api/news/featured');
+      if (!news) return;
+      
+      const section = document.getElementById('hero-section');
+      section.style.display = 'block';
+      
+      const imgHtml = news.main_image
+        ? `<img src="${news.main_image}" alt="${news.title}">`
+        : `<div class="hero-no-image"><span>CNA</span></div>`;
+
+      let counterHtml = '';
+      if (news.counter) {
+        counterHtml = renderCounter(news.counter);
+      }
+
+      section.innerHTML = `
+        <div class="news-section-header">
+          <h2 class="section-title">الخبر الرئيسي</h2>
+        </div>
+        <div class="hero-box">
+          <div class="hero-image-wrap">${imgHtml}</div>
+          <div class="hero-info">
+            ${news.is_breaking ? '<span class="hero-badge">عاجل</span>' : '<span class="hero-badge">مميز</span>'}
+            <h1 class="hero-title">${news.title}</h1>
+            <p class="hero-desc">${news.short_description || ''}</p>
+            <div class="hero-meta">
+              <span>${news.department_name || ''}</span>
+              <span>${formatDateTime(news.created_at)}</span>
+            </div>
+            ${counterHtml}
+            <a href="/news/${news.id}" class="hero-read-btn">قراءة الخبر كاملاً</a>
+          </div>
+        </div>
+      `;
+    } catch {}
+  }
+
+  function renderCounter(c) {
+    const bgStyle = c.bg_gradient
+      ? `background: ${c.bg_gradient};`
+      : c.bg_image
+        ? `background-image: url('${c.bg_image}'); background-size: cover;`
+        : `background: ${c.bg_color || '#000'};`;
+    
+    const fontFamily = c.font_style === 'serif' ? 'Amiri, serif' : 'Cairo, sans-serif';
+    
+    return `
+      <div class="counter-widget" id="counter-widget">
+        <div class="counter-bg" style="${bgStyle}"></div>
+        <div class="counter-inner" style="color: ${c.text_color || '#fff'}; font-family: ${fontFamily}">
+          <div class="counter-label">${c.label || 'منذ'}</div>
+          <div class="counter-display" id="counter-display"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function startCounter(c) {
+    function update() {
+      const el = document.getElementById('counter-display');
+      if (!el) return;
+      const start = new Date(c.start_date);
+      const now = new Date();
+      let diff = c.direction === 'down' ? (start - now) : (now - start);
+      if (diff < 0) diff = 0;
+      
+      const totalSecs = Math.floor(diff / 1000);
+      const days = Math.floor(totalSecs / 86400);
+      const hrs = Math.floor((totalSecs % 86400) / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+      
+      el.innerHTML = [
+        { n: days, label: 'يوم' },
+        { n: hrs, label: 'ساعة' },
+        { n: mins, label: 'دقيقة' },
+        { n: secs, label: 'ثانية' }
+      ].map(u => `
+        <div class="counter-unit">
+          <span class="counter-number">${String(u.n).padStart(2,'0')}</span>
+          <span class="counter-name">${u.label}</span>
+        </div>
+      `).join('');
+    }
+    update();
+    setInterval(update, 1000);
+  }
+
+  async function loadDepartments() {
+    try {
+      const depts = await api('/api/departments');
+      const navEl = document.getElementById('nav-depts');
+      const footerEl = document.getElementById('footer-dept-links');
+      
+      depts.forEach(d => {
+        const a = document.createElement('a');
+        a.className = 'nav-link' + (currentDept === d.slug ? ' active' : '');
+        a.textContent = d.name;
+        a.href = `/category/${d.slug}`;
+        a.onclick = (e) => { e.preventDefault(); currentDept = d.slug; document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); a.classList.add('active'); loadNews(1); };
+        navEl.appendChild(a);
+        
+        if (footerEl) {
+          const fl = document.createElement('a');
+          fl.href = `/category/${d.slug}`;
+          fl.textContent = d.name;
+          footerEl.appendChild(fl);
+        }
+      });
+
+      // Sidebar depts
+      const sidebarEl = document.getElementById('sidebar-depts');
+      if (sidebarEl) {
+        sidebarEl.innerHTML = depts.map(d => `
+          <div class="sidebar-news-item" style="border:none; padding:0.4rem 0;" onclick="currentDept='${d.slug}'; loadNews(1);" style="cursor:pointer">
+            <div style="flex:1">
+              <div class="sidebar-news-title">${d.name}</div>
+              <div class="sidebar-news-date">${d.news_count} خبر</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch {}
+  }
+
+  async function loadArchiveSidebar() {
+    try {
+      const archive = await api('/api/archive');
+      const el = document.getElementById('sidebar-archive');
+      if (!el) return;
+      const monthNames = ['','يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+      el.innerHTML = archive.slice(0, 6).map(a => `
+        <div class="sidebar-news-item" style="border:none; padding:0.4rem 0; cursor:pointer" onclick="location.href='/archive?year=${a.year}&month=${a.month}'">
+          <div style="flex:1">
+            <div class="sidebar-news-title">${monthNames[parseInt(a.month)]} ${a.year}</div>
+            <div class="sidebar-news-date">${a.count} خبر</div>
+          </div>
+        </div>
+      `).join('');
+    } catch {}
+  }
+
+  async function loadNews(page = 1) {
+    currentPage = page;
+    const grid = document.getElementById('news-grid');
+    grid.innerHTML = '<div class="loading"></div>';
+    
+    const searchQ = urlParams.get('q') || '';
+    
+    const params = new URLSearchParams({
+      page,
+      limit: 12,
+      ...(currentDept ? { department: currentDept } : {}),
+      ...(currentFilter === 'breaking' ? { breaking: 1 } : {}),
+      ...(searchQ ? { search: searchQ } : {})
+    });
+
+    try {
+      const data = await api('/api/news?' + params);
+      
+      document.getElementById('results-info').textContent = `${data.total} خبر`;
+      
+      if (!data.news.length) {
+        grid.innerHTML = '<div class="empty-state"><div class="empty-state-title">لا توجد أخبار</div><p>لم يتم العثور على أخبار مطابقة للفلاتر المحددة</p></div>';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+      
+      grid.innerHTML = data.news.map(renderNewsCard).join('');
+      document.getElementById('pagination').innerHTML = renderPagination(page, data.pages, 'loadNews');
+    } catch (e) {
+      grid.innerHTML = '<div class="empty-state"><p>حدث خطأ في تحميل الأخبار</p></div>';
+    }
+  }
+
+  // Load breaking in sidebar
+  async function loadBreakingSidebar() {
+    try {
+      const news = await api('/api/news?breaking=1&limit=5');
+      const el = document.getElementById('sidebar-breaking');
+      if (!news.news.length) { el.innerHTML = '<p style="font-size:0.85rem;color:#aaa;padding:0.5rem 0">لا توجد أخبار عاجلة</p>'; return; }
+      el.innerHTML = news.news.map(n => `
+        <div class="sidebar-news-item" onclick="location.href='/news/${n.id}'">
+          ${n.main_image ? `<img src="${n.main_image}" class="sidebar-news-img" alt="">` : ''}
+          <div>
+            <div class="sidebar-news-title">${n.title}</div>
+            <div class="sidebar-news-date">${timeAgo(n.created_at)}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch {}
+  }
+
+  function setFilter(f) {
+    currentFilter = f;
+    currentDept = '';
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelector('.nav-link:first-child').classList.add('active');
+    document.getElementById('section-title').textContent = f === 'breaking' ? 'الأخبار العاجلة' : 'آخر الأخبار';
+    loadNews(1);
+  }
+
+  function handleSearch(e) {
+    e.preventDefault();
+    const q = document.getElementById('search-input').value.trim();
+    if (q) window.location.href = '/?q=' + encodeURIComponent(q);
+  }
+
+  // After featured news loads, check for counter
+  const origLoadFeatured = loadFeaturedNews;
+  async function loadFeaturedNewsWithCounter() {
+    await origLoadFeatured();
+    try {
+      const news = await api('/api/news/featured');
+      if (news?.counter) startCounter(news.counter);
+    } catch {}
+  }
+
+  init().then(() => loadBreakingSidebar()).then(() => {
+    // Try to start counter after featured loads
+    setTimeout(async () => {
+      try {
+        const news = await api('/api/news/featured');
+        if (news?.counter) startCounter(news.counter);
+      } catch {}
+    }, 500);
+  });
+</script>
+</body>
+</html>

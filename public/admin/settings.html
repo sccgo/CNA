@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - إعدادات الموقع</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="admin-wrap">
+  <div class="admin-sidebar">
+    <div class="admin-sidebar-logo">
+      <div class="admin-logo-en">CNA</div>
+      <div class="admin-logo-ar">وكالة الأنباء التنسيقية</div>
+    </div>
+    <div class="admin-user-info">
+      <div class="admin-user-name" id="admin-user-name">...</div>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">الرئيسية</div>
+      <a href="/admin" class="admin-nav-link"><span class="admin-nav-icon">&#9632;</span> لوحة التحكم</a>
+      <a href="/" class="admin-nav-link" target="_blank"><span class="admin-nav-icon">&#9633;</span> عرض الموقع</a>
+      <div class="admin-nav-section">الأخبار</div>
+      <a href="/admin/create" class="admin-nav-link"><span class="admin-nav-icon">+</span> إنشاء خبر</a>
+      <div class="admin-nav-section">الإعدادات</div>
+      <a href="/admin/departments" class="admin-nav-link"><span class="admin-nav-icon">&#9650;</span> الشعب</a>
+      <a href="/admin/settings" class="admin-nav-link active"><span class="admin-nav-icon">&#9881;</span> إعدادات الموقع</a>
+      <a href="/admin/users" class="admin-nav-link"><span class="admin-nav-icon">&#9786;</span> المستخدمين</a>
+    </nav>
+    <div style="padding:1.5rem; border-top:1px solid rgba(255,255,255,0.1)">
+      <button onclick="logout()" class="btn" style="width:100%; border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.5); font-size:0.8rem">تسجيل الخروج</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title">إعدادات الموقع</h1>
+      <button onclick="saveSettings()" class="btn btn-primary">حفظ الإعدادات</button>
+    </div>
+    <div class="admin-content">
+      <div id="alert" class="alert" style="display:none"></div>
+      
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">إعدادات عامة</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">اسم الموقع (عربي)</label>
+            <input type="text" class="form-control" id="site_name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">اسم الموقع (إنجليزي / رمز)</label>
+            <input type="text" class="form-control" id="site_name_en">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">الشعار / الوصف المختصر</label>
+          <input type="text" class="form-control" id="site_tagline">
+        </div>
+      </div>
+
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">إعدادات شريط الأخبار العاجلة</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">لون خلفية الشريط</label>
+            <input type="color" class="form-control" id="ticker_bg" style="height:45px">
+          </div>
+          <div class="form-group">
+            <label class="form-label">لون نص الشريط</label>
+            <input type="color" class="form-control" id="ticker_text_color" style="height:45px">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">سرعة حركة الشريط (كلما زادت القيمة كان أبطأ)</label>
+          <input type="range" class="form-control" id="ticker_speed" min="10" max="100" style="padding:0.5rem 0">
+          <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#737373; margin-top:0.25rem">
+            <span>سريع</span>
+            <span id="ticker-speed-val"></span>
+            <span>بطيء</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-form-card">
+        <div class="admin-form-card-title">تغيير كلمة المرور</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">كلمة المرور الحالية</label>
+            <input type="password" class="form-control" id="current_password">
+          </div>
+          <div class="form-group">
+            <label class="form-label">كلمة المرور الجديدة</label>
+            <input type="password" class="form-control" id="new_password">
+          </div>
+        </div>
+        <button onclick="changePassword()" class="btn">تغيير كلمة المرور</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/utils.js"></script>
+<script>
+  async function init() {
+    const me = await api('/api/me');
+    if (!me.user) { window.location.href = '/login'; return; }
+    document.getElementById('admin-user-name').textContent = me.user.full_name || me.user.username;
+    
+    const s = await api('/api/settings');
+    document.getElementById('site_name').value = s.site_name || '';
+    document.getElementById('site_name_en').value = s.site_name_en || '';
+    document.getElementById('site_tagline').value = s.site_tagline || '';
+    document.getElementById('ticker_bg').value = s.ticker_bg || '#000000';
+    document.getElementById('ticker_text_color').value = s.ticker_text_color || '#ffffff';
+    const spd = document.getElementById('ticker_speed');
+    spd.value = s.ticker_speed || '40';
+    document.getElementById('ticker-speed-val').textContent = spd.value;
+    spd.oninput = () => { document.getElementById('ticker-speed-val').textContent = spd.value; };
+  }
+
+  async function saveSettings() {
+    try {
+      await api('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          site_name: document.getElementById('site_name').value,
+          site_name_en: document.getElementById('site_name_en').value,
+          site_tagline: document.getElementById('site_tagline').value,
+          ticker_bg: document.getElementById('ticker_bg').value,
+          ticker_text_color: document.getElementById('ticker_text_color').value,
+          ticker_speed: document.getElementById('ticker_speed').value
+        })
+      });
+      showToast('تم حفظ الإعدادات بنجاح');
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  async function changePassword() {
+    const cp = document.getElementById('current_password').value;
+    const np = document.getElementById('new_password').value;
+    if (!cp || !np) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
+    if (np.length < 6) { showToast('كلمة المرور يجب أن تكون 6 أحرف على الأقل', 'error'); return; }
+    try {
+      await api('/api/change-password', { method: 'POST', body: JSON.stringify({ current_password: cp, new_password: np }) });
+      document.getElementById('current_password').value = '';
+      document.getElementById('new_password').value = '';
+      showToast('تم تغيير كلمة المرور بنجاح');
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

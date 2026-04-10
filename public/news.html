@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNA - تفاصيل الخبر</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-top">
+    <a href="/" class="site-logo">
+      <span class="logo-en">CNA</span>
+      <span class="logo-ar">وكالة الأنباء التنسيقية</span>
+      <div class="logo-line"></div>
+    </a>
+    <form class="search-form" onsubmit="handleSearch(event)">
+      <input type="text" id="search-input" placeholder="ابحث في الأخبار..." autocomplete="off">
+      <button type="submit">بحث</button>
+    </form>
+    <div class="header-actions" id="header-actions">
+      <a href="/login" class="btn btn-sm btn-primary">دخول</a>
+    </div>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="container">
+    <div id="page-content"><div class="loading"></div></div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-bottom">
+      <span id="footer-year"></span>
+      <span>وكالة الأنباء التنسيقية - جميع الحقوق محفوظة</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/utils.js"></script>
+<script>
+  document.getElementById('footer-year').textContent = new Date().getFullYear();
+  const newsId = window.location.pathname.split('/').pop();
+  let currentUser = null;
+  let userVoted = localStorage.getItem('voted_' + newsId);
+
+  async function init() {
+    await initHeader();
+    const me = await api('/api/me');
+    currentUser = me.user;
+    loadNews();
+  }
+
+  async function loadNews() {
+    const content = document.getElementById('page-content');
+    try {
+      const news = await api('/api/news/' + newsId);
+      document.title = `CNA - ${news.title}`;
+      
+      content.innerHTML = `
+        <div style="margin-bottom:1rem">
+          <a href="/" style="font-size:0.85rem; color:#737373; text-decoration:none;">الرئيسية</a>
+          <span style="color:#d4d4d4; margin:0 0.5rem">/</span>
+          <span style="font-size:0.85rem; color:#737373">${news.department_name || 'عام'}</span>
+        </div>
+
+        <div class="content-with-sidebar" style="align-items:start">
+          <article class="news-detail-wrap">
+            ${renderNewsDetail(news)}
+          </article>
+          <aside class="sidebar">
+            ${renderNewsSidebar(news)}
+          </aside>
+        </div>
+      `;
+
+      // Init poll
+      if (news.poll) initPoll(news.poll);
+      // Init counter if featured
+      if (news.counter && news.is_featured) initCounter(news.counter);
+      
+      // Image lightbox
+      document.querySelectorAll('.detail-images-grid img').forEach(img => {
+        img.onclick = () => openLightbox(img.src);
+      });
+
+    } catch (e) {
+      content.innerHTML = `<div class="empty-state"><div class="empty-state-title">الخبر غير موجود</div><a href="/" class="btn">العودة للرئيسية</a></div>`;
+    }
+  }
+
+  function renderNewsDetail(news) {
+    const images = Array.isArray(news.images) ? news.images : [];
+    
+    return `
+      <div class="news-detail-header">
+        <div class="detail-badges">
+          ${news.is_breaking ? '<span class="detail-badge breaking">عاجل</span>' : ''}
+          ${news.is_featured ? '<span class="detail-badge">مميز</span>' : ''}
+          <span class="detail-badge">${news.department_name || 'عام'}</span>
+        </div>
+        <h1 class="detail-title">${news.title}</h1>
+        ${news.short_description ? `<p class="detail-desc">${news.short_description}</p>` : ''}
+        <div class="detail-meta">
+          <span>تاريخ النشر: ${formatDateTime(news.created_at)}</span>
+          ${news.updated_at !== news.created_at ? `<span>آخر تحديث: ${formatDateTime(news.updated_at)}</span>` : ''}
+          <span>المشاهدات: ${news.views || 0}</span>
+          <span>الشعبة: ${news.department_name || 'غير محدد'}</span>
+        </div>
+        ${currentUser ? `
+          <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap">
+            <a href="/admin/edit/${news.id}" class="btn btn-sm">تعديل الخبر</a>
+            <button onclick="deleteNews(${news.id})" class="btn btn-sm btn-danger">حذف</button>
+          </div>
+        ` : ''}
+      </div>
+
+      ${news.main_image ? `<img src="${news.main_image}" alt="${news.title}" class="detail-main-image">` : ''}
+      
+      <div class="detail-content">${news.content || ''}</div>
+      
+      ${images.length ? `
+        <div class="detail-images">
+          <div class="news-section-header"><h3 class="section-title">الصور</h3></div>
+          <div class="detail-images-grid">
+            ${images.map(img => `<img src="${img}" alt="" loading="lazy">`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${news.poll ? renderPollWidget(news.poll) : ''}
+
+      ${news.related?.length ? `
+        <div style="margin-top:2.5rem">
+          <div class="news-section-header"><h3 class="section-title">أخبار ذات صلة</h3></div>
+          <div class="news-grid">
+            ${news.related.map(renderNewsCard).join('')}
+          </div>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function renderNewsSidebar(news) {
+    return `
+      ${news.counter && news.is_featured ? `
+        <div class="sidebar-widget">
+          <h3 class="sidebar-widget-title">العداد</h3>
+          ${renderCounterWidget(news.counter)}
+        </div>
+      ` : ''}
+      <div class="sidebar-widget">
+        <h3 class="sidebar-widget-title">معلومات الخبر</h3>
+        <div style="font-size:0.875rem; display:flex; flex-direction:column; gap:0.6rem; color:#737373">
+          <div><strong style="color:#0a0a0a">الشعبة:</strong> ${news.department_name || 'غير محدد'}</div>
+          <div><strong style="color:#0a0a0a">التصنيف:</strong> ${getCategoryName(news.category)}</div>
+          <div><strong style="color:#0a0a0a">تاريخ النشر:</strong> ${formatDate(news.created_at)}</div>
+          <div><strong style="color:#0a0a0a">المشاهدات:</strong> ${news.views || 0}</div>
+          ${news.is_breaking ? '<div style="font-weight:700; color:#0a0a0a">خبر عاجل</div>' : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCounterWidget(c) {
+    const bgStyle = c.bg_gradient
+      ? `background: ${c.bg_gradient};`
+      : c.bg_image
+        ? `background-image: url('${c.bg_image}'); background-size: cover;`
+        : `background: ${c.bg_color || '#000'};`;
+    const fontFamily = c.font_style === 'serif' ? 'Amiri, serif' : 'Cairo, sans-serif';
+    return `
+      <div class="counter-widget" id="counter-widget">
+        <div class="counter-bg" style="${bgStyle}"></div>
+        <div class="counter-inner" style="color:${c.text_color||'#fff'}; font-family:${fontFamily}">
+          <div class="counter-label">${c.label||'منذ'}</div>
+          <div class="counter-display" id="counter-display"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function initCounter(c) {
+    function update() {
+      const el = document.getElementById('counter-display');
+      if (!el) return;
+      const start = new Date(c.start_date);
+      const now = new Date();
+      let diff = c.direction === 'down' ? (start - now) : (now - start);
+      if (diff < 0) diff = 0;
+      const totalSecs = Math.floor(diff / 1000);
+      const days = Math.floor(totalSecs / 86400);
+      const hrs = Math.floor((totalSecs % 86400) / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+      el.innerHTML = [
+        { n: days, label: 'يوم' },
+        { n: hrs, label: 'ساعة' },
+        { n: mins, label: 'دقيقة' },
+        { n: secs, label: 'ثانية' }
+      ].map(u => `<div class="counter-unit"><span class="counter-number">${String(u.n).padStart(2,'0')}</span><span class="counter-name">${u.label}</span></div>`).join('');
+    }
+    update();
+    setInterval(update, 1000);
+  }
+
+  function renderPollWidget(poll) {
+    const isExpired = poll.expires_at && new Date(poll.expires_at) < new Date();
+    const totalVotes = poll.total_votes || 0;
+    
+    if (userVoted || isExpired) {
+      return renderPollResults(poll, isExpired);
+    }
+    
+    return `
+      <div class="poll-widget" id="poll-widget">
+        <div class="poll-title">استطلاع الرأي</div>
+        <div class="poll-question">${poll.question}</div>
+        ${isExpired ? '<p style="font-size:0.85rem; color:#737373; margin-bottom:1rem">انتهت مدة التصويت</p>' : ''}
+        <div class="poll-options" id="poll-options">
+          ${poll.options.map((opt, i) => `
+            <button class="poll-option-btn" onclick="vote(${poll.id}, ${i})">${opt}</button>
+          `).join('')}
+        </div>
+        ${poll.expires_at && !isExpired ? `
+          <div class="poll-total">ينتهي التصويت: ${formatDateTime(poll.expires_at)}</div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function renderPollResults(poll, isExpired) {
+    const totalVotes = poll.total_votes || 0;
+    const votesMap = {};
+    (poll.votes || []).forEach(v => { votesMap[v.option_index] = v.count; });
+    
+    return `
+      <div class="poll-widget">
+        <div class="poll-title">نتائج الاستطلاع ${isExpired ? '(منتهي)' : ''}</div>
+        <div class="poll-question">${poll.question}</div>
+        <div id="poll-results">
+          ${poll.options.map((opt, i) => {
+            const votes = votesMap[i] || 0;
+            const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+            return `
+              <div class="poll-result-bar">
+                <div class="poll-result-label">
+                  <span>${opt}</span>
+                  <span>${pct}% (${votes})</span>
+                </div>
+                <div class="poll-bar-track">
+                  <div class="poll-bar-fill" style="width:${pct}%"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div class="poll-total">مجموع الاصوات: ${totalVotes}</div>
+      </div>
+    `;
+  }
+
+  function initPoll(poll) {
+    if (userVoted) {
+      // Already rendered results above
+    }
+  }
+
+  async function vote(pollId, optionIndex) {
+    try {
+      const res = await api(`/api/polls/${pollId}/vote`, {
+        method: 'POST',
+        body: JSON.stringify({ option_index: optionIndex })
+      });
+      localStorage.setItem('voted_' + newsId, '1');
+      userVoted = true;
+      
+      // Re-render results
+      const news = await api('/api/news/' + newsId);
+      if (news.poll) {
+        document.getElementById('poll-widget').outerHTML = renderPollResults(news.poll, false);
+      }
+      showToast('تم تسجيل صوتك بنجاح');
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  async function deleteNews(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا الخبر؟')) return;
+    try {
+      await api('/api/news/' + id, { method: 'DELETE' });
+      showToast('تم حذف الخبر بنجاح');
+      setTimeout(() => location.href = '/', 1000);
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  function getCategoryName(cat) {
+    const map = { general: 'عام', politics: 'سياسة', economy: 'اقتصاد', security: 'أمن', culture: 'ثقافة', international: 'دولي' };
+    return map[cat] || cat || 'عام';
+  }
+
+  function handleSearch(e) {
+    e.preventDefault();
+    const q = document.getElementById('search-input').value.trim();
+    if (q) window.location.href = '/?q=' + encodeURIComponent(q);
+  }
+
+  init();
+</script>
+</body>
+</html>
